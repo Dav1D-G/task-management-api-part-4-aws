@@ -1,0 +1,143 @@
+pipeline {
+  agent none
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    skipDefaultCheckout(true)
+  }
+
+  parameters {
+    choice(name: 'ENV', choices: ['dev', 'prod'], description: 'Target environment')
+    booleanParam(name: 'RUN_TESTS', defaultValue: true, description: 'Run automated tests')
+    string(name: 'BUILD_VERSION', defaultValue: '0.1.0', description: 'Build version label')
+  }
+
+  stages {
+    stage('Checkout') {
+      agent { label 'agent-ci' }
+      steps {
+        checkout scm
+        stash name: 'source', includes: '**/*'
+      }
+    }
+
+    stage('Install Dependencies') {
+      agent { label 'agent-ci' }
+      steps {
+        unstash 'source'
+        sh 'npm install'
+        stash name: 'source', includes: '**/*'
+      }
+    }
+
+    stage('Run Tests') {
+      agent { label 'agent-ci' }
+      when {
+        expression { return params.RUN_TESTS }
+      }
+      steps {
+        unstash 'source'
+        sh 'npm test'
+        stash name: 'source', includes: '**/*'
+      }
+    }
+
+    stage('Build Metadata') {
+      agent { label 'agent-ci' }
+      steps {
+        unstash 'source'
+        script {
+          def content = "BUILD_VERSION=${params.BUILD_VERSION}\nENV=${params.ENV}\nRUN_TESTS=${params.RUN_TESTS}\n"
+          writeFile file: 'build-info.txt', text: content
+          echo "Build info written: BUILD_VERSION=${params.BUILD_VERSION}, ENV=${params.ENV}, RUN_TESTS=${params.RUN_TESTS}"
+        }
+        archiveArtifacts artifacts: 'build-info.txt', allowEmptyArchive: false
+        stash name: 'source', includes: '**/*'
+      }
+    }
+
+    stage('Credentials Check') {
+      agent { label 'agent-docker' }
+      steps {
+        unstash 'source'
+        withCredentials([string(credentialsId: 'demo-token', variable: 'DEMO_TOKEN')]) {
+          sh 'test -n "$DEMO_TOKEN"'
+        }
+        echo 'Credential loaded successfully'
+      }
+    }
+
+    stage('Docker Build') {
+      agent { label 'agent-docker' }
+      steps {
+        unstash 'source'
+        sh 'docker build -t task-api:local .'
+      }
+    }
+
+    stage('Docker Run') {
+      agent { label 'agent-docker' }
+      steps {
+        unstash 'source'
+        sh '''
+          set -e
+          docker rm -f task-api-local >/dev/null 2>&1 || true
+          docker run -d --name task-api-local -p 3000:3000 task-api:local
+          for i in $(seq 1 10); do
+            if curl -fsS http://host.docker.internal:3000/health >/dev/null; then
+              echo "Health check OK"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Health check failed"
+          exit 1
+        '''
+      }
+    }
+
+    stage('Deploy App Infra (Terraform)') {
+      agent { label 'agent-infra' }
+      steps {
+        unstash 'source'
+        sh '''
+          set -e
+
+          INFRA_DIR=""
+          for d in "aws/app-infra" "app-infra" "../aws/app-infra"; do
+            if [ -d "$d" ]; then
+              INFRA_DIR="$d"
+              break
+            fi
+          done
+
+          if [ -z "$INFRA_DIR" ]; then
+            echo "Cannot find app-infra directory in workspace."
+            exit 1
+          fi
+
+          cd "$INFRA_DIR"
+          terraform init -reconfigure -backend-config="backend.hcl"
+          terraform plan -var-file="${ENV}.tfvars" -out=tfplan
+          terraform apply -auto-approve tfplan
+        '''
+      }
+    }
+  }
+
+  post {
+    success {
+      echo 'Build completed successfully'
+    }
+    failure {
+      echo 'Build failed ? check logs'
+    }
+    always {
+      node('agent-docker') {
+        sh 'docker rm -f task-api-local >/dev/null 2>&1 || true'
+      }
+      echo 'Post-build actions completed'
+    }
+  }
+}

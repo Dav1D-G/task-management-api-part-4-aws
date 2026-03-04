@@ -1,0 +1,41 @@
+{
+    "Objects":  [
+                    {
+                        "Key":  "jenkins-infra/terraform.tfstate",
+                        "VersionId":  "BUK9BFS8aGjOtB.jRnyqanKlwyV6_yzX"
+                    },
+                    {
+                        "Key":  "jenkins-infra/terraform.tfstate",
+                        "VersionId":  "Paf0cFgWOtZj4tat4C_RLXyB4CTTob1q"
+                    },
+                    {
+                        "Key":  "jenkins-infra/terraform.tfstate",
+                        "VersionId":  "shclLgzp40Z905MdpuUpF28nGt83DH2J"
+                    },
+                    {
+                        "Key":  "jenkins-infra/terraform.tfstate",
+                        "VersionId":  "z1RPLo4eloLXPw9TdhF7negpTG51_.sp"
+                    },
+                    {
+                        "Key":  "jenkins-infra/terraform.tfstate",
+                        "VersionId":  "eCoiS8xEGnD7wC6CG7quxk5U4nqTwOJk"
+                    },
+                    {
+                        "Key":  "jenkins-infra/terraform.tfstate",
+                        "VersionId":  "I6IbXU31UrSRKhGQ37kILvUw5TY1ugG2"
+                    },
+                    {
+                        "Key":  "jenkins-infra/terraform.tfstate",
+                        "VersionId":  "4RNSYEl99hTZbDqEDsQsNOjoYM09B7bd"
+                    },
+                    {
+                        "Key":  "jenkins-infra/terraform.tfstate",
+                        "VersionId":  "K6yRe6fyVTxJvlWeSJmZUy5FCMd_fzqa"
+                    },
+                    {
+                        "Key":  "jenkins-infra/terraform.tfstate",
+                        "VersionId":  ".2kvOoHCIFQOcoTeEWY2qIbomXkQut68"
+                    }
+                ],
+    "Quiet":  true
+}

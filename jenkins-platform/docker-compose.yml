@@ -1,0 +1,55 @@
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins-part4-local
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+
+  agent_ci:
+    build: ./agents/ci
+    image: jenkins-agent:ci
+    container_name: jenkins-agent-ci
+    restart: unless-stopped
+    environment:
+      - JENKINS_URL=${JENKINS_URL:-http://jenkins:8080}
+      - JENKINS_AGENT_NAME=${CI_AGENT_NAME:-agent-ci}
+      - JENKINS_SECRET=${CI_AGENT_SECRET}
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+    depends_on:
+      - jenkins
+
+  agent_docker:
+    build: ./agents/docker
+    image: jenkins-agent:docker
+    container_name: jenkins-agent-docker
+    restart: unless-stopped
+    user: root
+    environment:
+      - JENKINS_URL=${JENKINS_URL:-http://jenkins:8080}
+      - JENKINS_AGENT_NAME=${DOCKER_AGENT_NAME:-agent-docker}
+      - JENKINS_SECRET=${DOCKER_AGENT_SECRET}
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - jenkins
+
+  agent_infra:
+    build: ./agents/infra
+    image: jenkins-agent:infra
+    container_name: jenkins-agent-infra
+    restart: unless-stopped
+    environment:
+      - JENKINS_URL=${JENKINS_URL:-http://jenkins:8080}
+      - JENKINS_AGENT_NAME=${INFRA_AGENT_NAME:-agent-infra}
+      - JENKINS_SECRET=${INFRA_AGENT_SECRET}
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+    depends_on:
+      - jenkins
+
+volumes:
+  jenkins_home:
