@@ -1,6 +1,11 @@
 pipeline {
   agent none
 
+  environment {
+    APP_DIR   = 'jenkins-app'
+    INFRA_DIR = 'aws/app-infra'
+  }
+
   options {
     timestamps()
     disableConcurrentBuilds()
@@ -27,7 +32,9 @@ pipeline {
       agent { label 'agent-ci' }
       steps {
         unstash 'source'
-        sh 'npm install'
+        dir("${APP_DIR}") {
+          sh 'npm install'
+        }
         stash name: 'source', includes: '**/*'
       }
     }
@@ -39,7 +46,9 @@ pipeline {
       }
       steps {
         unstash 'source'
-        sh 'npm test'
+        dir("${APP_DIR}") {
+          sh 'npm test'
+        }
         stash name: 'source', includes: '**/*'
       }
     }
@@ -48,12 +57,14 @@ pipeline {
       agent { label 'agent-ci' }
       steps {
         unstash 'source'
-        script {
-          def content = "BUILD_VERSION=${params.BUILD_VERSION}\nENV=${params.ENV}\nRUN_TESTS=${params.RUN_TESTS}\n"
-          writeFile file: 'build-info.txt', text: content
-          echo "Build info written: BUILD_VERSION=${params.BUILD_VERSION}, ENV=${params.ENV}, RUN_TESTS=${params.RUN_TESTS}"
+        dir("${APP_DIR}") {
+          script {
+            def content = "BUILD_VERSION=${params.BUILD_VERSION}\nENV=${params.ENV}\nRUN_TESTS=${params.RUN_TESTS}\n"
+            writeFile file: 'build-info.txt', text: content
+            echo "Build info written: BUILD_VERSION=${params.BUILD_VERSION}, ENV=${params.ENV}, RUN_TESTS=${params.RUN_TESTS}"
+          }
         }
-        archiveArtifacts artifacts: 'build-info.txt', allowEmptyArchive: false
+        archiveArtifacts artifacts: "${APP_DIR}/build-info.txt", allowEmptyArchive: false
         stash name: 'source', includes: '**/*'
       }
     }
@@ -73,7 +84,9 @@ pipeline {
       agent { label 'agent-docker' }
       steps {
         unstash 'source'
-        sh 'docker build -t task-api:local .'
+        dir("${APP_DIR}") {
+          sh 'docker build -t task-api:local .'
+        }
       }
     }
 
@@ -81,20 +94,22 @@ pipeline {
       agent { label 'agent-docker' }
       steps {
         unstash 'source'
-        sh '''
-          set -e
-          docker rm -f task-api-local >/dev/null 2>&1 || true
-          docker run -d --name task-api-local -p 3000:3000 task-api:local
-          for i in $(seq 1 10); do
-            if curl -fsS http://host.docker.internal:3000/health >/dev/null; then
-              echo "Health check OK"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Health check failed"
-          exit 1
-        '''
+        dir("${APP_DIR}") {
+          sh '''
+            set -e
+            docker rm -f task-api-local >/dev/null 2>&1 || true
+            docker run -d --name task-api-local -p 3000:3000 task-api:local
+            for i in $(seq 1 10); do
+              if curl -fsS http://host.docker.internal:3000/health >/dev/null; then
+                echo "Health check OK"
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "Health check failed"
+            exit 1
+          '''
+        }
       }
     }
 
@@ -105,20 +120,12 @@ pipeline {
         sh '''
           set -e
 
-          INFRA_DIR=""
-          for d in "aws/app-infra" "app-infra" "../aws/app-infra"; do
-            if [ -d "$d" ]; then
-              INFRA_DIR="$d"
-              break
-            fi
-          done
-
-          if [ -z "$INFRA_DIR" ]; then
+          if [ ! -d "${INFRA_DIR}" ]; then
             echo "Cannot find app-infra directory in workspace."
             exit 1
           fi
 
-          cd "$INFRA_DIR"
+          cd "${INFRA_DIR}"
           terraform init -reconfigure -backend-config="backend.hcl"
           terraform plan -var-file="${ENV}.tfvars" -out=tfplan
           terraform apply -auto-approve tfplan
@@ -147,20 +154,12 @@ pipeline {
         sh '''
           set -e
 
-          INFRA_DIR=""
-          for d in "aws/app-infra" "app-infra" "../aws/app-infra"; do
-            if [ -d "$d" ]; then
-              INFRA_DIR="$d"
-              break
-            fi
-          done
-
-          if [ -z "$INFRA_DIR" ]; then
+          if [ ! -d "${INFRA_DIR}" ]; then
             echo "Cannot find app-infra directory in workspace."
             exit 1
           fi
 
-          cd "$INFRA_DIR"
+          cd "${INFRA_DIR}"
           terraform init -reconfigure -backend-config="backend.hcl"
           terraform destroy -auto-approve -var-file="${ENV}.tfvars"
         '''
