@@ -10,6 +10,5 @@ terraform {
 }
 
 provider "aws" {
-  region  = "eu-central-1"
-  profile = "dawid_dominik"
+  region = "eu-central-1"
 }
