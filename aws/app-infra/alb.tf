@@ -16,7 +16,7 @@ resource "aws_lb_target_group" "app" {
     create_before_destroy = true
   }
   health_check {
-    path = "/"
+    path = "/health"
   }
 }
 
