@@ -1,29 +1,36 @@
-# Jenkins Infra (AWS)
+# Jenkins Infrastructure (AWS)
 
-Stack platformowy dla Jenkins (oddzielony od infrastruktury aplikacyjnej).
+This stack provisions infrastructure for Jenkins, separated from app infrastructure.
 
-## Co jest tworzone
+## What is created
 
-- VPC oraz podsieci publiczne/prywatne
-- Internet Gateway i routing dla części publicznej
-- Security Groups dla ALB, Jenkins EC2 i endpointów SSM
-- ALB (listener HTTP :80 -> target Jenkins :8080)
-- EC2 z instalacją Jenkins przez `user_data`
-- IAM role + instance profile dla SSM
-- Key Pair z lokalnego klucza publicznego
+- VPC with public and private subnets
+- Internet Gateway and public routing
+- Security groups for Jenkins EC2 and SSM endpoints
+- Jenkins EC2 instance in a private subnet
+- IAM role and instance profile for SSM and AWS access
+- Key pair from a local public key
+- Bootstrap via `user_data`:
+  - Docker installation
+  - Jenkins controller container
+  - 3 Jenkins agents (`agent-ci`, `agent-docker`, `agent-infra`)
 
-## Uruchomienie
+## Apply
 
 ```powershell
-cd C:\Users\Dawid\Desktop\Jenkins\part_4\AWS\jenkins-infra
+cd aws/jenkins-infra
 terraform init -backend-config=backend.hcl
 terraform apply -var-file=terraform.tfvars
 ```
 
-## Wynik
+## Outputs
 
-Output `jenkins_url` zwraca adres ALB do interfejsu Jenkins.
+- `jenkins_instance_id`
+- `jenkins_private_ip`
 
-## Ważna uwaga
+## Important note
 
-Aktualny wariant wystawia Jenkins po HTTP i ma otwarty SSH (`22`) do Internetu. To działa technicznie, ale nie domyka wymagań bezpieczeństwa z Part 3/4. W kolejnym kroku warto dodać TLS oraz ograniczenia dostępu administracyjnego.
+This setup is optimized for assignment/testing speed, not production hardening. For production:
+- add TLS and a proper domain for Jenkins
+- restrict administrative access paths
+- replace broad IAM permissions with least-privilege policies

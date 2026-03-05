@@ -1,25 +1,25 @@
 # Terraform Remote State (AWS)
 
-Ten stack tworzy wspólny backend Terraform dla pozostałych katalogów.
+This stack creates a shared Terraform backend for other stacks in this repository.
 
-## Co jest tworzone
+## What is created
 
-- Bucket S3 na `terraform.tfstate`
-- Tabela DynamoDB do blokowania stanu (`LockID`)
-- Versioning i szyfrowanie SSE po stronie S3
-- Blokada publicznego dostępu do bucketu
+- S3 bucket for Terraform state (`terraform.tfstate`)
+- DynamoDB table for state locking (`LockID`)
+- S3 versioning and server-side encryption
+- S3 public access block
 
-## Uruchomienie
+## Apply
 
 ```powershell
-cd C:\Users\Dawid\Desktop\Jenkins\part_4\AWS\remote-state
+cd aws/remote-state
 terraform init
 terraform apply -var-file=terraform.tfvars
 ```
 
-## Po wdrożeniu
+## After deployment
 
-Wartości `bucket_name` i `lock_table_name` muszą zgadzać się z `backend.hcl` w:
+Use output values `bucket_name` and `lock_table_name` in backend configs used by:
 
-- `..\jenkins-infra\backend.hcl`
-- `..\app-infra\backend.hcl`
+- `aws/jenkins-infra/backend.hcl`
+- `aws/app-infra/backend.hcl`
