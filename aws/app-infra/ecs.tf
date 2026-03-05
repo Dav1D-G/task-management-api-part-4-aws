@@ -41,10 +41,16 @@ resource "aws_ecs_task_definition" "app" {
 
   container_definitions = jsonencode([
     {
-      name      = "app"
-      image     = "nginx:alpine"
-      essential = true
+      name         = "app"
+      image        = var.container_image
+      essential    = true
       portMappings = [{ containerPort = 80, hostPort = 80 }]
+      environment = [
+        {
+          name  = "PORT"
+          value = "80"
+        }
+      ]
       logConfiguration = {
         logDriver = "awslogs"
         options = {

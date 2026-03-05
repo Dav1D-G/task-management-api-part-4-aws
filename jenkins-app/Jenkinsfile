@@ -4,6 +4,7 @@ pipeline {
   environment {
     APP_DIR   = 'jenkins-app'
     INFRA_DIR = 'aws/app-infra'
+    AWS_REGION = 'eu-central-1'
   }
 
   options {
@@ -90,6 +91,43 @@ pipeline {
       }
     }
 
+    stage('Prepare ECR Repo (Terraform)') {
+      agent { label 'agent-infra' }
+      steps {
+        unstash 'source'
+        sh '''
+          set -e
+
+          cd "${INFRA_DIR}"
+          terraform init -reconfigure -backend-config="backend.hcl"
+          terraform apply -auto-approve -target=aws_ecr_repository.app -var-file="${ENV}.tfvars"
+          terraform output -raw ecr_repo_url > "${WORKSPACE}/ecr_repo_url.txt"
+        '''
+        stash name: 'ecr-info', includes: 'ecr_repo_url.txt'
+      }
+    }
+
+    stage('Docker Push to ECR') {
+      agent { label 'agent-docker' }
+      steps {
+        unstash 'ecr-info'
+        sh '''
+          set -e
+
+          ECR_REPO="$(cat ecr_repo_url.txt)"
+          IMAGE_TAG="${BUILD_VERSION}-${BUILD_NUMBER}"
+          IMAGE_URI="${ECR_REPO}:${IMAGE_TAG}"
+
+          aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REPO%/*}"
+          docker tag task-api:local "${IMAGE_URI}"
+          docker push "${IMAGE_URI}"
+
+          echo "${IMAGE_URI}" > image_uri.txt
+        '''
+        stash name: 'image-info', includes: 'image_uri.txt'
+      }
+    }
+
     stage('Docker Run') {
       agent { label 'agent-docker' }
       steps {
@@ -117,6 +155,7 @@ pipeline {
       agent { label 'agent-infra' }
       steps {
         unstash 'source'
+        unstash 'image-info'
         sh '''
           set -e
 
@@ -125,9 +164,10 @@ pipeline {
             exit 1
           fi
 
+          IMAGE_URI="$(cat image_uri.txt)"
           cd "${INFRA_DIR}"
           terraform init -reconfigure -backend-config="backend.hcl"
-          terraform plan -var-file="${ENV}.tfvars" -out=tfplan
+          terraform plan -var-file="${ENV}.tfvars" -var="container_image=${IMAGE_URI}" -out=tfplan
           terraform apply -auto-approve tfplan
         '''
       }
