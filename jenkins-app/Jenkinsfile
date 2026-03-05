@@ -91,6 +91,29 @@ pipeline {
       }
     }
 
+    stage('Docker Run') {
+      agent { label 'agent-docker' }
+      steps {
+        unstash 'source'
+        dir("${APP_DIR}") {
+          sh '''
+            set -e
+            docker rm -f task-api-local >/dev/null 2>&1 || true
+            docker run -d --name task-api-local -p 3000:3000 task-api:local
+            for i in $(seq 1 10); do
+              if docker run --rm --network container:task-api-local curlimages/curl:8.7.1 -fsS http://127.0.0.1:3000/health >/dev/null; then
+                echo "Health check OK"
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "Health check failed"
+            exit 1
+          '''
+        }
+      }
+    }
+
     stage('Prepare ECR Repo (Terraform)') {
       agent { label 'agent-infra' }
       steps {
@@ -125,29 +148,6 @@ pipeline {
           echo "${IMAGE_URI}" > image_uri.txt
         '''
         stash name: 'image-info', includes: 'image_uri.txt'
-      }
-    }
-
-    stage('Docker Run') {
-      agent { label 'agent-docker' }
-      steps {
-        unstash 'source'
-        dir("${APP_DIR}") {
-          sh '''
-            set -e
-            docker rm -f task-api-local >/dev/null 2>&1 || true
-            docker run -d --name task-api-local -p 3000:3000 task-api:local
-            for i in $(seq 1 10); do
-              if docker run --rm --network container:task-api-local curlimages/curl:8.7.1 -fsS http://127.0.0.1:3000/health >/dev/null; then
-                echo "Health check OK"
-                exit 0
-              fi
-              sleep 1
-            done
-            echo "Health check failed"
-            exit 1
-          '''
-        }
       }
     }
 
