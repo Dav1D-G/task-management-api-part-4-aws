@@ -16,12 +16,16 @@ pipeline {
   parameters {
     choice(name: 'ENV', choices: ['dev', 'prod'], description: 'Target environment')
     booleanParam(name: 'RUN_TESTS', defaultValue: true, description: 'Run automated tests')
+    booleanParam(name: 'DESTROY_ONLY', defaultValue: false, description: 'Destroy app-infra only (skip build/test/deploy)')
     booleanParam(name: 'DESTROY_INFRA_AFTER_APPROVAL', defaultValue: false, description: 'Ask for approval and destroy app-infra after deploy')
     string(name: 'BUILD_VERSION', defaultValue: '0.1.0', description: 'Build version label')
   }
 
   stages {
     stage('Checkout') {
+      when {
+        expression { return !params.DESTROY_ONLY }
+      }
       agent { label 'agent-ci' }
       steps {
         checkout scm
@@ -30,6 +34,9 @@ pipeline {
     }
 
     stage('Install Dependencies') {
+      when {
+        expression { return !params.DESTROY_ONLY }
+      }
       agent { label 'agent-ci' }
       steps {
         unstash 'source'
@@ -43,7 +50,7 @@ pipeline {
     stage('Run Tests') {
       agent { label 'agent-ci' }
       when {
-        expression { return params.RUN_TESTS }
+        expression { return !params.DESTROY_ONLY && params.RUN_TESTS }
       }
       steps {
         unstash 'source'
@@ -55,6 +62,9 @@ pipeline {
     }
 
     stage('Build Metadata') {
+      when {
+        expression { return !params.DESTROY_ONLY }
+      }
       agent { label 'agent-ci' }
       steps {
         unstash 'source'
@@ -71,6 +81,9 @@ pipeline {
     }
 
     stage('Credentials Check') {
+      when {
+        expression { return !params.DESTROY_ONLY }
+      }
       agent { label 'agent-docker' }
       steps {
         unstash 'source'
@@ -82,6 +95,9 @@ pipeline {
     }
 
     stage('Docker Build') {
+      when {
+        expression { return !params.DESTROY_ONLY }
+      }
       agent { label 'agent-docker' }
       steps {
         unstash 'source'
@@ -92,6 +108,9 @@ pipeline {
     }
 
     stage('Docker Run') {
+      when {
+        expression { return !params.DESTROY_ONLY }
+      }
       agent { label 'agent-docker' }
       steps {
         unstash 'source'
@@ -115,6 +134,9 @@ pipeline {
     }
 
     stage('Prepare ECR Repo (Terraform)') {
+      when {
+        expression { return !params.DESTROY_ONLY }
+      }
       agent { label 'agent-infra' }
       steps {
         unstash 'source'
@@ -131,6 +153,9 @@ pipeline {
     }
 
     stage('Docker Push to ECR') {
+      when {
+        expression { return !params.DESTROY_ONLY }
+      }
       agent { label 'agent-docker' }
       steps {
         unstash 'ecr-info'
@@ -152,6 +177,9 @@ pipeline {
     }
 
     stage('Deploy App Infra (Terraform)') {
+      when {
+        expression { return !params.DESTROY_ONLY }
+      }
       agent { label 'agent-infra' }
       steps {
         unstash 'source'
@@ -175,7 +203,7 @@ pipeline {
 
     stage('Approve Destroy App Infra') {
       when {
-        expression { return params.DESTROY_INFRA_AFTER_APPROVAL }
+        expression { return !params.DESTROY_ONLY && params.DESTROY_INFRA_AFTER_APPROVAL }
       }
       steps {
         timeout(time: 15, unit: 'MINUTES') {
@@ -184,10 +212,26 @@ pipeline {
       }
     }
 
+    stage('Destroy Only App Infra (Terraform)') {
+      agent { label 'agent-infra' }
+      when {
+        expression { return params.DESTROY_ONLY }
+      }
+      steps {
+        checkout scm
+        sh '''
+          set -e
+          cd "${INFRA_DIR}"
+          terraform init -reconfigure -backend-config="backend.hcl"
+          terraform destroy -auto-approve -var-file="${ENV}.tfvars"
+        '''
+      }
+    }
+
     stage('Destroy App Infra (Terraform)') {
       agent { label 'agent-infra' }
       when {
-        expression { return params.DESTROY_INFRA_AFTER_APPROVAL }
+        expression { return !params.DESTROY_ONLY && params.DESTROY_INFRA_AFTER_APPROVAL }
       }
       steps {
         unstash 'source'
