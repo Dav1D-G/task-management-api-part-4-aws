@@ -100,7 +100,7 @@ pipeline {
             docker rm -f task-api-local >/dev/null 2>&1 || true
             docker run -d --name task-api-local -p 3000:3000 task-api:local
             for i in $(seq 1 10); do
-              if curl -fsS http://host.docker.internal:3000/health >/dev/null; then
+              if docker run --rm --network container:task-api-local curlimages/curl:8.7.1 -fsS http://127.0.0.1:3000/health >/dev/null; then
                 echo "Health check OK"
                 exit 0
               fi
