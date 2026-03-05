@@ -1,5 +1,0 @@
-bucket         = "jenkins-part4-tfstate-eu-central-1-dawid-dominik"
-key            = "jenkins-infra/dev/terraform.tfstate"
-region         = "eu-central-1"
-profile        = "dawid_dominik"
-dynamodb_table = "jenkins-part4-tf-lock"
